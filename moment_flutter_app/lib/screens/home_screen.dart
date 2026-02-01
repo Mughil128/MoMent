@@ -36,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Fetch transcript with retries
       String? transcript;
       int retries = 0;
-      const maxRetries = 10;
+      const maxRetries = 1;
 
       while (transcript == null && retries < maxRetries) {
         try {

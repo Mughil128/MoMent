@@ -86,7 +86,8 @@ class MeetingService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['transcript'] as String;
+      print(data);
+      return data['moments'] as String;
     } else if (response.statusCode == 404) {
       throw Exception('Transcript not ready yet. Please wait...');
     } else {
