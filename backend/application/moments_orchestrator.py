@@ -13,7 +13,7 @@ class MomentsOrchestrator:
     def process_meeting_workflow(self, meeting_id: str, force_remaining: bool = False):
         # 1. Call STT to process the meeting audio
         if force_remaining and hasattr(self.stt, 'process_remaining'):
-            transcript_chunk = self.stt.process_meeting(meeting_id)
+            transcript_chunk = self.stt.process_remaining(meeting_id)
         else:
             transcript_chunk = self.stt.process_meeting(meeting_id)
         print(f"[Orchestrator] STT returned: {transcript_chunk!r}")
@@ -31,8 +31,13 @@ class MomentsOrchestrator:
             raise FileNotFoundError(f"Transcript not found for meeting {meeting_id}")
         
         with open(transcript_path, "r", encoding="utf-8") as f:
-            transctipt = f.read()
+            transcript = f.read()
         
-        prompt=prompt_builder.build_prompt(transctipt)
-        mom=self.llm.prompt(prompt)
-        return mom
+        try:
+            prompt = prompt_builder.build_prompt(transcript)
+            mom = self.llm.prompt(prompt)
+            return mom
+        except Exception as e:
+            print(f"[Orchestrator] LLM failed: {e}, returning raw transcript")
+            # Return transcript with basic formatting if LLM fails
+            return f"TRANSCRIPT\n{'='*50}\n\n{transcript}\n\n(Note: AI summary unavailable - showing raw transcript)"

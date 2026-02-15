@@ -74,8 +74,15 @@ class WhisperSTT(STTPort):
 
         if new_bytes == 0:
             return
+        
+        # Need at least 0.5 seconds for meaningful transcription
+        min_samples = int(SAMPLE_RATE * 0.5)
+        min_bytes = min_samples * 2
+        
+        if new_bytes < min_bytes:
+            print(f"[WhisperSTT] Warning: Only {new_bytes} bytes ({new_bytes/BYTES_PER_SECOND:.2f}s) - may be too short for transcription")
 
-        print(f"[WhisperSTT] Final flush for {meeting_id}: {new_bytes} bytes")
+        print(f"[WhisperSTT] Final flush for {meeting_id}: {new_bytes} bytes ({new_bytes/BYTES_PER_SECOND:.2f}s)")
 
         with open(pcm_path, "rb") as f:
             f.seek(last_bytes)
@@ -83,6 +90,14 @@ class WhisperSTT(STTPort):
 
         audio = np.frombuffer(pcm_data, dtype=np.int16)
         audio = audio.astype(np.float32) / 32768.0
+        
+        # Check audio statistics
+        audio_max = np.max(np.abs(audio))
+        audio_mean = np.mean(np.abs(audio))
+        print(f"[WhisperSTT] Audio stats - max: {audio_max:.4f}, mean: {audio_mean:.4f}")
+        
+        if audio_max < 0.01:
+            print(f"[WhisperSTT] Warning: Audio is very quiet (max={audio_max:.4f}), might be silence")
 
         print(f"[WhisperSTT] Transcribing final {len(audio)} samples...")
         result = self.model.transcribe(audio, fp16=False)

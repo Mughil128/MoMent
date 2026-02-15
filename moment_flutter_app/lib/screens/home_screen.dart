@@ -16,14 +16,16 @@ class _HomeScreenState extends State<HomeScreen> {
   String _status = 'Ready to start';
   String _transcript = '';
   String _currentMeetingId = '';
-  bool _isProcessing = false;
+  bool _isRecording = false;
+  bool _isFetchingTranscript = false;
 
   Future<void> _startMeeting() async {
     setState(() {
-      _isProcessing = true;
       _transcript = '';
       _currentMeetingId = 'meeting-${_uuid.v4().substring(0, 8)}';
       _status = 'Starting meeting $_currentMeetingId...';
+      _isRecording = true;
+      _isFetchingTranscript = false;
     });
 
     try {
@@ -32,6 +34,31 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentMeetingId,
         (status) => setState(() => _status = status),
       );
+    } catch (e) {
+      setState(() {
+        _status = 'Error: $e';
+        _isRecording = false;
+      });
+    }
+  }
+
+  Future<void> _stopMeeting() async {
+    if (_currentMeetingId.isEmpty || !_isRecording) {
+      return;
+    }
+
+    setState(() {
+      _isFetchingTranscript = true;
+    });
+
+    try {
+      await _meetingService.stopStreaming(
+        (status) => setState(() => _status = status),
+      );
+
+      setState(() {
+        _isRecording = false;
+      });
 
       // Fetch transcript with retries
       String? transcript;
@@ -67,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } finally {
       setState(() {
-        _isProcessing = false;
+        _isFetchingTranscript = false;
       });
     }
   }
@@ -94,11 +121,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     Icon(
                       Icons.mic,
                       size: 48,
-                      color: _isProcessing ? Colors.red : Colors.blue,
+                      color: _isRecording ? Colors.red : Colors.blue,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _isProcessing ? 'Processing...' : 'Meeting Transcription',
+                      _isRecording
+                          ? 'Recording...'
+                          : _isFetchingTranscript
+                          ? 'Processing...'
+                          : 'Meeting Transcription',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     if (_currentMeetingId.isNotEmpty) ...[
@@ -121,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(12.0),
                 child: Row(
                   children: [
-                    if (_isProcessing)
+                    if (_isFetchingTranscript)
                       const SizedBox(
                         width: 20,
                         height: 20,
@@ -142,20 +173,37 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Start Button
-            ElevatedButton.icon(
-              onPressed: _isProcessing ? null : _startMeeting,
-              icon: Icon(
-                _isProcessing ? Icons.hourglass_empty : Icons.play_arrow,
-              ),
-              label: Text(
-                _isProcessing ? 'Processing...' : 'Start Demo Meeting',
-              ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
+            // Start/Stop Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isRecording || _isFetchingTranscript
+                        ? null
+                        : _startMeeting,
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Start Recording'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isRecording ? _stopMeeting : null,
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Stop Recording'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 

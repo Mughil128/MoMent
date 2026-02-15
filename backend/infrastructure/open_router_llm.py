@@ -18,7 +18,7 @@ class OpenRouterLLM(LLMPort):
         }
 
         payload = {
-            "model": "meta-llama/llama-3.3-70b-instruct:free",
+            "model": "mistralai/mistral-7b-instruct",
             "messages": [
                 {"role": "system", "content": "You summarize meetings clearly and accurately."},
                 {"role": "user", "content": prompt}

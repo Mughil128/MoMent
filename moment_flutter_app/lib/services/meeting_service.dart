@@ -1,13 +1,41 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:record/record.dart';
 
 class MeetingService {
   final String baseUrl;
   final String wsUrl;
+
+  AudioRecorder? _currentRecorder;
+  WebSocketChannel? _currentChannel;
+  StreamSubscription<Uint8List>? _streamSubscription;
+
+  Future<void> stopStreaming(Function(String) onStatus) async {
+    onStatus("Stopping recording...");
+
+    // Stop the recorder first (this stops producing new chunks)
+    await _currentRecorder?.stop();
+
+    // Cancel the stream subscription
+    await _streamSubscription?.cancel();
+
+    // Small delay to ensure last chunks are sent
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Close the websocket
+    await _currentChannel?.sink.close();
+
+    _currentRecorder = null;
+    _currentChannel = null;
+    _streamSubscription = null;
+
+    onStatus("Audio sent. Processing...");
+  }
 
   MeetingService({String? baseUrl, String? wsUrl})
     : baseUrl = baseUrl ?? _getBaseUrl(),
@@ -15,67 +43,68 @@ class MeetingService {
 
   /// Get the appropriate base URL based on platform
   static String _getBaseUrl() {
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000';
-    }
-    return 'http://localhost:8000';
+    // if (Platform.isAndroid) {
+    //   return 'http://10.0.2.2:8000';
+    // }
+    return 'http://192.168.1.5:8000';
   }
 
   /// Get the appropriate WebSocket URL based on platform
   static String _getWsUrl() {
-    if (Platform.isAndroid) {
-      return 'ws://10.0.2.2:8000';
-    }
-    return 'ws://localhost:8000';
+    // if (Platform.isAndroid) {
+    //   return 'ws://10.0.2.2:8000';
+    // }
+    return 'ws://192.168.1.5:8000';
   }
 
-  /// Streams audio file to the backend via WebSocket
+  /// Streams audio to the backend via WebSocket
   Future<void> streamAudioToBackend(
     String meetingId,
     Function(String) onStatus,
   ) async {
-    onStatus('Loading audio file...');
+    final record = AudioRecorder();
 
-    // Load the sample audio from assets (MP3 - backend will convert to PCM)
-    final ByteData audioData = await rootBundle.load('assets/sample.mp3');
-    final Uint8List mp3Bytes = audioData.buffer.asUint8List();
+    // Check permission
+    if (!await record.hasPermission()) {
+      throw Exception("Microphone permission not granted");
+    }
 
-    onStatus('Connecting to server...');
+    onStatus("Connecting to server...");
 
-    // Connect to WebSocket
     final channel = WebSocketChannel.connect(
       Uri.parse('$wsUrl/ws/audio?meeting_id=$meetingId'),
     );
 
     await channel.ready;
-    onStatus('Connected! Streaming MP3 audio...');
 
-    // Stream MP3 audio in chunks
-    const chunkSize = 4096;
-    int bytesSent = 0;
+    onStatus("Connected! Recording and streaming audio...");
 
-    for (int i = 0; i < mp3Bytes.length; i += chunkSize) {
-      final end = (i + chunkSize < mp3Bytes.length)
-          ? i + chunkSize
-          : mp3Bytes.length;
-      final chunk = mp3Bytes.sublist(i, end);
+    // Start recording as AAC stream
+    final stream = await record.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+    );
 
-      channel.sink.add(chunk);
-      bytesSent += chunk.length;
+    // Listen to audio stream and send to backend
+    _streamSubscription = stream.listen(
+      (Uint8List chunk) {
+        print("Sending audio chunk: ${chunk.length} bytes");
+        channel.sink.add(chunk);
+      },
+      onError: (e) {
+        print("Stream error: $e");
+      },
+      onDone: () {
+        print("Audio stream completed");
+      },
+    );
 
-      // Small delay to simulate real-time streaming
-      await Future.delayed(const Duration(milliseconds: 30));
-    }
-
-    onStatus('Audio sent ($bytesSent bytes). Processing...');
-
-    // Close the connection to trigger server-side processing
-    await channel.sink.close();
-
-    // Give the server time to process
-    await Future.delayed(const Duration(seconds: 3));
-
-    onStatus('Fetching transcript...');
+    // Store references so you can stop later
+    _currentRecorder = record;
+    _currentChannel = channel;
   }
 
   /// Fetches transcript for a meeting from the backend
