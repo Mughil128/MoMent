@@ -227,15 +227,35 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              ..._actions.map(
-                                (a) => Padding(
-                                  padding:
-                                      const EdgeInsets.only(bottom: 6),
-                                  child: Text("• $a"),
-                                ),
-                              )
+                              const SizedBox(height: 12),
+
+                              ..._actions.map((action) {
+                                final owner = action['owner']?.toString().trim();
+                                final task = action['task']?.toString().trim();
+                                final deadline = action['deadline']?.toString().trim();
+
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  child: ListTile(
+                                    leading: const Icon(Icons.check_circle_outline),
+                                    title: Text(
+                                      task?.isNotEmpty == true ? task! : "Task not specified",
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        if (owner != null && owner.isNotEmpty)
+                                          Text("Owner: $owner"),
+                                        if (deadline != null && deadline.isNotEmpty)
+                                          Text("Deadline: $deadline"),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
                             ],
+
                           ],
                         ),
                       ),
