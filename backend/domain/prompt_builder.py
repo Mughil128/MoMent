@@ -1,4 +1,4 @@
-def build_prompt(transctipt):
+def build_prompt(transcript):
     prompt=f"""You are an AI-powered meeting assistant.
 
 Given the following meeting transcript, generate a SINGLE structured output that includes:
@@ -11,6 +11,8 @@ Rules:
 - Be clear, professional, and structured
 - Group related discussion points together
 - Clearly distinguish between discussion, decisions, and action items
+- Use no formatting
+- Do not assume any follow-up questions when none are present
 
 Output Format:
 
@@ -33,14 +35,10 @@ Participants:
 - Clearly list finalized decisions
 - If none, state: "No decisions were finalized"
 
-4. Action Items
-- Format: [Owner] - [Task] - [Deadline]
-- If owner or deadline is missing, use "Unassigned" or "Not specified"
-
-5. Risks, Blockers, or Concerns
+4. Risks, Blockers, or Concerns
 - Any challenges, disagreements, or risks mentioned
 
-6. Open Questions / Follow-ups
+5. Open Questions / Follow-ups
 - Items requiring further discussion or clarification
 
 ========================
@@ -49,11 +47,12 @@ MEETING SUMMARY
 
 - Provide a concise, high-level summary (5-7 bullet points or 1 short paragraph)
 - Focus on purpose, key outcomes, and next steps
+- Do not give action items
 
 The following is the Transcript:
 <<<
-{transctipt}
+{transcript}
 >>>
 """
-    print("[Promp Builder] "+ prompt)
+    print("[Prompt Builder] "+ prompt)
     return prompt

@@ -1,3 +1,4 @@
 recordings/
 .env
 __pycache__/
+backend/models/

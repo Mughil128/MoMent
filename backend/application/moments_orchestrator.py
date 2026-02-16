@@ -3,6 +3,8 @@ from domain.ports.file_handling_port import FileHandlingPort
 import os
 from domain.ports.llm_port import LLMPort
 from domain import prompt_builder
+from nlp.action_pipeline import extract_actions_from_transcript
+
 class MomentsOrchestrator:
     def __init__(self, stt: STTPort, file_handler: FileHandlingPort,llm:LLMPort):
         self.stt = stt
@@ -25,19 +27,56 @@ class MomentsOrchestrator:
             self.file_handler.append_text_line(transcript_path, transcript_chunk)
             print(f"[Orchestrator] Wrote transcript chunk")
             
-    def meeting_end_workflow(self,meeting_id):
+    def meeting_end_workflow(self, meeting_id):
+        import os
+        from nlp.action_pipeline import extract_actions_from_transcript
+
         transcript_path = os.path.join(self.BASE_DIR, meeting_id, "transcript.txt")
+
         if not os.path.exists(transcript_path):
             raise FileNotFoundError(f"Transcript not found for meeting {meeting_id}")
-        
+
         with open(transcript_path, "r", encoding="utf-8") as f:
             transcript = f.read()
-        
+
+        # =========================
+        # 1️⃣ GENERATE MOM (LLM)
+        # =========================
         try:
             prompt = prompt_builder.build_prompt(transcript)
             mom = self.llm.prompt(prompt)
-            return mom
         except Exception as e:
-            print(f"[Orchestrator] LLM failed: {e}, returning raw transcript")
-            # Return transcript with basic formatting if LLM fails
-            return f"TRANSCRIPT\n{'='*50}\n\n{transcript}\n\n(Note: AI summary unavailable - showing raw transcript)"
+            print(f"[Orchestrator] LLM failed: {e}")
+            mom = (
+                "AI summary unavailable. Showing transcript instead.\n\n"
+                + transcript
+            )
+
+        # =========================
+        # 2️⃣ EXTRACT ACTION ITEMS
+        # =========================
+        try:
+            actions = extract_actions_from_transcript(transcript)
+        except Exception as e:
+            print(f"[Orchestrator] Action extraction failed: {e}")
+            actions = []
+
+        # =========================
+        # 3️⃣ APPEND ACTIONS TO MOM
+        # =========================
+        if actions:
+            mom += "\n\nAction Items:\n"
+            for a in actions:
+                line = f"- {a['owner']} → {a['task']}"
+                if a["deadline"]:
+                    line += f" ({a['deadline']})"
+                mom += line + "\n"
+
+        # =========================
+        # 4️⃣ RETURN FULL RESPONSE
+        # =========================
+        return {
+            "mom": mom,
+            "actions": actions,
+            "transcript": transcript
+        }

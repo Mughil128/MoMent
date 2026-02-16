@@ -46,7 +46,7 @@ class MeetingService {
     // if (Platform.isAndroid) {
     //   return 'http://10.0.2.2:8000';
     // }
-    return 'http://192.168.1.5:8000';
+    return 'http://192.168.1.7:8000';
   }
 
   /// Get the appropriate WebSocket URL based on platform
@@ -54,7 +54,7 @@ class MeetingService {
     // if (Platform.isAndroid) {
     //   return 'ws://10.0.2.2:8000';
     // }
-    return 'ws://192.168.1.5:8000';
+    return 'ws://192.168.1.7:8000';
   }
 
   /// Streams audio to the backend via WebSocket
@@ -108,19 +108,9 @@ class MeetingService {
   }
 
   /// Fetches transcript for a meeting from the backend
-  Future<String> getTranscript(String meetingId) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/transcript/$meetingId'),
-    );
+  Future<Map<String, dynamic>> getTranscript(String meetingId) async {
+  final response = await http.get(Uri.parse('$baseUrl/api/transcript/$meetingId'));
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print(data);
-      return data['moments'] as String;
-    } else if (response.statusCode == 404) {
-      throw Exception('Transcript not ready yet. Please wait...');
-    } else {
-      throw Exception('Failed to fetch transcript: ${response.statusCode}');
-    }
-  }
+  return jsonDecode(response.body);
+}
 }

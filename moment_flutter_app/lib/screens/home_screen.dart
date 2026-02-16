@@ -14,22 +14,26 @@ class _HomeScreenState extends State<HomeScreen> {
   final Uuid _uuid = const Uuid();
 
   String _status = 'Ready to start';
-  String _transcript = '';
   String _currentMeetingId = '';
+
   bool _isRecording = false;
-  bool _isFetchingTranscript = false;
+  bool _isProcessing = false;
+
+  // 🔹 Meeting output
+  String _mom = '';
+  List _actions = [];
 
   Future<void> _startMeeting() async {
     setState(() {
-      _transcript = '';
+      _mom = '';
+      _actions = [];
       _currentMeetingId = 'meeting-${_uuid.v4().substring(0, 8)}';
       _status = 'Starting meeting $_currentMeetingId...';
       _isRecording = true;
-      _isFetchingTranscript = false;
+      _isProcessing = false;
     });
 
     try {
-      // Stream audio to backend
       await _meetingService.streamAudioToBackend(
         _currentMeetingId,
         (status) => setState(() => _status = status),
@@ -43,12 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _stopMeeting() async {
-    if (_currentMeetingId.isEmpty || !_isRecording) {
-      return;
-    }
+    if (_currentMeetingId.isEmpty || !_isRecording) return;
 
     setState(() {
-      _isFetchingTranscript = true;
+      _isProcessing = true;
+      _status = "Finalizing meeting...";
     });
 
     try {
@@ -56,46 +59,27 @@ class _HomeScreenState extends State<HomeScreen> {
         (status) => setState(() => _status = status),
       );
 
+      setState(() => _isRecording = false);
+
+      // wait for backend processing
+      await Future.delayed(const Duration(seconds: 2));
+
+      final data =
+          await _meetingService.getTranscript(_currentMeetingId);
+
+      final moments = data['moments'];
+
       setState(() {
-        _isRecording = false;
+        _mom = moments?['mom'] ?? 'No MoM generated.';
+        _actions = moments?['actions'] ?? [];
+        _status = "Meeting summary ready!";
       });
-
-      // Fetch transcript with retries
-      String? transcript;
-      int retries = 0;
-      const maxRetries = 1;
-
-      while (transcript == null && retries < maxRetries) {
-        try {
-          await Future.delayed(const Duration(seconds: 2));
-          transcript = await _meetingService.getTranscript(_currentMeetingId);
-        } catch (e) {
-          retries++;
-          setState(
-            () => _status =
-                'Waiting for transcript... (attempt $retries/$maxRetries)',
-          );
-        }
-      }
-
-      if (transcript != null) {
-        setState(() {
-          _transcript = transcript!;
-          _status = 'Transcription complete!';
-        });
-      } else {
-        setState(() {
-          _status = 'Could not retrieve transcript after $maxRetries attempts';
-        });
-      }
     } catch (e) {
       setState(() {
-        _status = 'Error: $e';
+        _status = 'Error retrieving summary';
       });
     } finally {
-      setState(() {
-        _isFetchingTranscript = false;
-      });
+      setState(() => _isProcessing = false);
     }
   }
 
@@ -108,14 +92,13 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Card
+            /// 🔹 Header Card
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     Icon(
@@ -126,10 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _isRecording
-                          ? 'Recording...'
-                          : _isFetchingTranscript
-                          ? 'Processing...'
-                          : 'Meeting Transcription',
+                          ? 'Recording in progress...'
+                          : _isProcessing
+                              ? 'Processing meeting...'
+                              : 'AI Meeting Assistant',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     if (_currentMeetingId.isNotEmpty) ...[
@@ -143,48 +126,44 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
 
-            // Status Card
+            /// 🔹 Status Card
             Card(
               color: Colors.blue.shade50,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    if (_isFetchingTranscript)
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      const Icon(Icons.info_outline, size: 20),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _status,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
+                    _isProcessing
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.info_outline),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(_status)),
                   ],
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
 
-            // Start/Stop Buttons
+            /// 🔹 Buttons
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isRecording || _isFetchingTranscript
-                        ? null
-                        : _startMeeting,
+                    onPressed:
+                        _isRecording || _isProcessing ? null : _startMeeting,
                     icon: const Icon(Icons.play_arrow),
-                    label: const Text('Start Recording'),
+                    label: const Text("Start"),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
                     ),
@@ -195,9 +174,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _isRecording ? _stopMeeting : null,
                     icon: const Icon(Icons.stop),
-                    label: const Text('Stop Recording'),
+                    label: const Text("Stop"),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                     ),
@@ -205,68 +184,61 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
 
-            // Transcript Section
+            const SizedBox(height: 20),
+
+            /// 🔹 Output Section
             Expanded(
               child: Card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
+                child: _mom.isEmpty
+                    ? Center(
+                        child: Text(
+                          "Meeting summary will appear here",
+                          style:
+                              TextStyle(color: Colors.grey.shade600),
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.description, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Transcript',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: _transcript.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.text_snippet_outlined,
-                                    size: 48,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Transcript will appear here',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : SingleChildScrollView(
-                              padding: const EdgeInsets.all(16),
-                              child: SelectableText(
-                                _transcript,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  height: 1.5,
-                                ),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Minutes of Meeting",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                    ),
-                  ],
-                ),
+                            const SizedBox(height: 12),
+                            SelectableText(
+                              _mom,
+                              style: const TextStyle(
+                                  fontSize: 16, height: 1.5),
+                            ),
+
+                            if (_actions.isNotEmpty) ...[
+                              const SizedBox(height: 24),
+                              const Text(
+                                "Action Items",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ..._actions.map(
+                                (a) => Padding(
+                                  padding:
+                                      const EdgeInsets.only(bottom: 6),
+                                  child: Text("• $a"),
+                                ),
+                              )
+                            ],
+                          ],
+                        ),
+                      ),
               ),
             ),
           ],
