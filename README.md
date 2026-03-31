@@ -189,23 +189,3 @@ flutter run
 * Ensure microphone permissions are granted
 * Model files must be present in `/models` for action extraction
 * Large meetings may take longer to process
-
----
-
-## Testing
-
-Basic test scripts are available in:
-
-```
-test/
-```
-
----
-
-## Future Improvements
-
-* Speaker identification (diarization)
-* Live summary updates during meeting
-* Cloud deployment support
-* Multilingual support
-* Integration with task management tools
