@@ -7,7 +7,7 @@ from shared_state import meeting_states
 
 SAMPLE_RATE = 16000
 BYTES_PER_SECOND = SAMPLE_RATE * 2
-BATCH_SECONDS = 5  # Process every 5 seconds of audio
+BATCH_SECONDS = 5 
 
 class WhisperSTT(STTPort):
     def __init__(self, model_name="base"):
@@ -46,7 +46,6 @@ class WhisperSTT(STTPort):
         audio = np.frombuffer(pcm_data, dtype=np.int16)
         audio = audio.astype(np.float32) / 32768.0
 
-        # Pass audio array directly to Whisper (bypasses ffmpeg requirement)
         print(f"[WhisperSTT] Transcribing {len(audio)} samples...")
         result = self.model.transcribe(audio, fp16=False)
         text = result['text'].strip()
@@ -57,7 +56,6 @@ class WhisperSTT(STTPort):
         return text if text else None
 
     def process_remaining(self, meeting_id):
-        """Process any remaining audio when meeting ends, ignoring batch size."""
         state = meeting_states.get(meeting_id)
         if not state:
             return
@@ -75,7 +73,6 @@ class WhisperSTT(STTPort):
         if new_bytes == 0:
             return
         
-        # Need at least 0.5 seconds for meaningful transcription
         min_samples = int(SAMPLE_RATE * 0.5)
         min_bytes = min_samples * 2
         
@@ -91,7 +88,6 @@ class WhisperSTT(STTPort):
         audio = np.frombuffer(pcm_data, dtype=np.int16)
         audio = audio.astype(np.float32) / 32768.0
         
-        # Check audio statistics
         audio_max = np.max(np.abs(audio))
         audio_mean = np.mean(np.abs(audio))
         print(f"[WhisperSTT] Audio stats - max: {audio_max:.4f}, mean: {audio_mean:.4f}")

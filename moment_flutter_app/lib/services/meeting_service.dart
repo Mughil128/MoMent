@@ -46,7 +46,7 @@ class MeetingService {
     // if (Platform.isAndroid) {
     //   return 'http://10.0.2.2:8000';
     // }
-    return 'http://192.168.1.7:8000';
+    return 'http://10.107.134.99:8000';
   }
 
   /// Get the appropriate WebSocket URL based on platform
@@ -54,7 +54,7 @@ class MeetingService {
     // if (Platform.isAndroid) {
     //   return 'ws://10.0.2.2:8000';
     // }
-    return 'ws://192.168.1.7:8000';
+    return 'ws://10.107.134.99:8000';
   }
 
   /// Streams audio to the backend via WebSocket

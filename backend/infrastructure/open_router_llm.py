@@ -18,7 +18,7 @@ class OpenRouterLLM(LLMPort):
         }
 
         payload = {
-            "model": "mistralai/mistral-7b-instruct",
+            "model": "openrouter/free",
             "messages": [
                 {"role": "system", "content": "You summarize meetings clearly and accurately."},
                 {"role": "user", "content": prompt}
@@ -27,6 +27,8 @@ class OpenRouterLLM(LLMPort):
         }
 
         response = requests.post(self.URL, headers=headers, json=payload, timeout=60)
+        print("STATUS:", response.status_code)
+        print("BODY:", response.text)
         response.raise_for_status()
         # print("1: "+response)
         data = response.json()
